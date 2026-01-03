@@ -407,11 +407,11 @@ except Exception as e:
 rf_model = None
 try:
     rf_path = pfind([
+        "Best_RF_Model.json",
         "random_forest_model.pkl",
         "random_forest_model.joblib",
         "rf_model.pkl",
         "RF_model.pkl",
-        "Best_RF_Model.json",
         "best_rf_model.json",
         "RF_model.json",
     ])
@@ -450,8 +450,8 @@ except Exception as e:
 cat_model = None
 try:
     cat_path = pfind([
-        "CatBoost.cbm",
         "Best_CatBoost_Model.cbm",
+        "CatBoost.cbm",
         "catboost.cbm",
     ])
     cat_model = catboost.CatBoostRegressor()
