@@ -869,46 +869,39 @@ def _sweep_curve_df(model_choice, base_df, theta_max=THETA_MAX, step=0.10):
     
     return pd.DataFrame(rows)
 
+# =============================================================================
+# ✅ FIXED FIGURE ONLY (NO BANDS, NO UD/PD/SD/COL, AUTO Y-SCALE FOR ξ_eq)
+# =============================================================================
 def render_xieq_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, y_max=1.5, size=480):
     import altair as alt
-    
+
     if curve_df.empty:
         return
-    
+
     # extend curve with last predicted point to remove the gap
-    if highlight_df is not None:
+    if highlight_df is not None and not highlight_df.empty:
         curve_df = pd.concat([curve_df, highlight_df], ignore_index=True)
-    
-    actual_theta_max = curve_df["θ"].max()
-    
+
+    actual_theta_max = float(curve_df["θ"].max())
+
+    # auto-fit y-limit for damping ratio (ξ_eq)
+    y_data_max = float(curve_df["Predicted_xi_eq"].max())
+    if highlight_df is not None and not highlight_df.empty:
+        y_data_max = max(y_data_max, float(highlight_df["Predicted_xi_eq"].max()))
+
+    # headroom + sensible minimum; keep hard cap 1.5 to match your original settings
+    y_top = min(1.5, max(0.30, y_data_max * 1.15))
+
+    # ticks
+    x_ticks = np.linspace(0.0, actual_theta_max, 5)
+    y_ticks = np.linspace(0.0, y_top, 5)
+
     AXIS_LABEL_FS = 14
     AXIS_TITLE_FS = 16
-    
+
     base_axes_df = pd.DataFrame({"θ":[0, actual_theta_max], "Predicted_xi_eq":[0,0]})
-    x_ticks = np.linspace(0, actual_theta_max, 5).round(2)
-    
-    # ---- background bands (UD, PD, SD, COL ranges) ----
-    bands_df = pd.DataFrame([
-        {"y0":0.0, "y1":0.2, "color":"rgba(0,200,0,0.18)"},     # UD
-        {"y0":0.2, "y1":0.5, "color":"rgba(255,215,0,0.18)"},   # PD
-        {"y0":0.5, "y1":1.0, "color":"rgba(255,140,0,0.18)"},   # SD
-        {"y0":1.0, "y1":1.5, "color":"rgba(255,0,0,0.18)"},     # COL
-    ])
-    
-    band_layer = (
-        alt.Chart(bands_df)
-        .mark_rect()
-        .encode(
-            x=alt.value(0),
-            x2=alt.value(size),
-            y="y0:Q",
-            y2="y1:Q",
-            color=alt.Color("color:N", scale=None)
-        )
-        .properties(width=size, height=size)
-    )
-    
-    # ---- main axes with tight y-limit at 1.5 ----
+
+    # axes only (no colored background)
     axes_layer = (
         alt.Chart(base_axes_df).mark_line(opacity=0)
         .encode(
@@ -917,7 +910,7 @@ def render_xieq_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, y_max=1.
                 title="Drift Ratio (θ)",
                 scale=alt.Scale(domain=[0, actual_theta_max]),
                 axis=alt.Axis(
-                    values=list(x_ticks),
+                    values=list(np.round(x_ticks, 2)),
                     format=".2f",
                     labelFontSize=AXIS_LABEL_FS,
                     titleFontSize=AXIS_TITLE_FS,
@@ -926,9 +919,10 @@ def render_xieq_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, y_max=1.
             y=alt.Y(
                 "Predicted_xi_eq:Q",
                 title="Equivalent Viscous Damping Ratio (ξ_eq)",
-                scale=alt.Scale(domain=[0, y_max], nice=False, clamp=True),
+                scale=alt.Scale(domain=[0, y_top], nice=False, clamp=True),
                 axis=alt.Axis(
-                    values=[0, 0.2, 0.5, 1.0, 1.5],
+                    values=list(np.round(y_ticks, 3)),
+                    format=".3f",
                     labelFontSize=AXIS_LABEL_FS,
                     titleFontSize=AXIS_TITLE_FS,
                 ),
@@ -936,47 +930,24 @@ def render_xieq_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, y_max=1.
         )
         .properties(width=size, height=size)
     )
-    
+
+    # main curve
     line_layer = (
         alt.Chart(curve_df)
         .mark_line(strokeWidth=2, color="blue")
         .encode(x="θ:Q", y="Predicted_xi_eq:Q")
     )
-    
-    layers = [band_layer, axes_layer, line_layer]
-    
-    # ---- band labels: UD / PD / SD / COL ----
-    labels_df = pd.DataFrame([
-        {"θ": actual_theta_max * 0.80, "Predicted_xi_eq": 0.10, "label": "UD"},
-        {"θ": actual_theta_max * 0.80, "Predicted_xi_eq": 0.35, "label": "PD"},
-        {"θ": actual_theta_max * 0.20, "Predicted_xi_eq": 0.75, "label": "SD"},
-        {"θ": actual_theta_max * 0.20, "Predicted_xi_eq": 1.25, "label": "COL"},
-    ])
-    
-    label_layer = (
-        alt.Chart(labels_df)
-        .mark_text(
-            fontSize=18,
-            fontWeight="bold",
-            color="black",
-        )
-        .encode(
-            x="θ:Q",
-            y="Predicted_xi_eq:Q",
-            text="label:N",
-        )
-    )
-    
-    layers.append(label_layer)
-    
-    # ---- highlight last prediction point + value ----
-    if highlight_df is not None:
+
+    layers = [axes_layer, line_layer]
+
+    # highlight last point + value text (kept same behavior)
+    if highlight_df is not None and not highlight_df.empty:
         point_layer = (
             alt.Chart(highlight_df)
             .mark_circle(size=110, color="red")
             .encode(x="θ:Q", y="Predicted_xi_eq:Q")
         )
-        
+
         val_text_layer = (
             alt.Chart(highlight_df)
             .mark_text(
@@ -993,9 +964,9 @@ def render_xieq_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, y_max=1.
                 text=alt.Text("Predicted_xi_eq:Q", format=".4f"),
             )
         )
-        
+
         layers += [point_layer, val_text_layer]
-    
+
     chart = alt.layer(*layers).configure_view(strokeWidth=0)
     st.components.v1.html(chart.to_html(), height=size+100)
 
