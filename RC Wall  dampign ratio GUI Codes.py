@@ -1,5 +1,5 @@
 DOC_NOTES = """
-RC Shear Wall Damage Index (DI) Estimator — compact, same logic/UI
+RC Shear Wall Equivalent Viscous Damping Ratio (ξ_eq) Estimator — compact, same logic/UI
 """
 
 
@@ -127,7 +127,7 @@ def pfind(candidates):
 # =============================================================================
 
 st.set_page_config(
-    page_title="RC Shear Wall DI Estimator", layout="wide", page_icon="🧱"
+    page_title="RC Shear Wall ξ_eq Estimator", layout="wide", page_icon="🧱"
 )
 
 # Header / spacing
@@ -615,7 +615,7 @@ with left:
     st.markdown("""
     <div style="background:transparent; border-radius:12px; padding:0px; margin:0 0 3px 0; box-shadow:none;">
         <div style="text-align:center; font-size:25px; font-weight:600; color:#333; margin:0; padding:0;">
-            Predict Damage index for RC Shear Walls
+            Predict Equivalent Viscous Damping Ratio (ξ_eq) for RC Shear Walls
         </div>
     """, unsafe_allow_html=True)
 
@@ -646,7 +646,7 @@ with left:
 # =============================================================================
 # 🎮 STEP 7: RIGHT PANEL - CONTROLS & INTERACTION ELEMENTS
 # =============================================================================
-# Fixed-height box for schematic so DI–θ plot position does not change
+# Fixed-height box for schematic so ξ_eq–θ plot position does not change
 SCHEM_BOX_H    = 300   # Keep original
 SCHEM_IMG_H    = 480   # Keep original
 SCHEM_OFFSET_X = 80    # Keep original
@@ -657,7 +657,7 @@ SCHEM2_IMG_H   = 480   # Make taller to match chart
 SCHEM2_OFFSET_X = 500  # Keep original
 SCHEM2_OFFSET_Y = -40  # Keep original Y position
 
-CHART_W = 350          # width used later for DI–θ chart
+CHART_W = 350          # width used later for ξ_eq–θ chart
 
 with right:
 
@@ -688,14 +688,14 @@ with right:
         unsafe_allow_html=True,
     )
     
-    # ---- ONE ROW: [ left = DI–θ plot | right = controls ] ----
+    # ---- ONE ROW: [ left = ξ_eq–θ plot | right = controls ] ----
     col_plot, col_controls = st.columns([3, 1])
     
     # =============================================================================
-    # ⭐ SUB-STEP 7.1 — DI–θ PLOT (LEFT SIDE)
+    # ⭐ SUB-STEP 7.1 — ξ_eq–θ PLOT (LEFT SIDE)
     # =============================================================================
     with col_plot:
-        # slot where STEP 8 will render the DI–θ plot
+        # slot where STEP 8 will render the ξ_eq–θ plot
         chart_slot = st.empty()
            
     # =============================================================================
@@ -747,7 +747,7 @@ with right:
             st.download_button(
                 "📂 Download as CSV",
                 data=csv,
-                file_name="di_predictions.csv",
+                file_name="xieq_predictions.csv",
                 mime="text/csv",
                 use_container_width=True,
                 key="dl_csv",
@@ -783,7 +783,7 @@ div[data-testid="column"]:nth-child(2) > div:nth-child(2) {
 """)
 
 # =============================================================================
-# ⚡ STEP 8: DI–θ PREDICTION & PLOT (FIXED)
+# ⚡ STEP 8: ξ_eq–θ PREDICTION & PLOT (FIXED)
 # =============================================================================
 
 _TRAIN_NAME_MAP = {
@@ -817,7 +817,7 @@ _TRAIN_COL_ORDER = [
 def _df_in_train_order(df): 
     return df.rename(columns=_TRAIN_NAME_MAP).reindex(columns=_TRAIN_COL_ORDER)
 
-def predict_di(choice, input_df):
+def predict_xieq(choice, input_df):
     df_trees = _df_in_train_order(input_df).replace([np.inf,-np.inf],np.nan).fillna(0.0)
     X = df_trees.values.astype(np.float32)
 
@@ -864,12 +864,12 @@ def _sweep_curve_df(model_choice, base_df, theta_max=THETA_MAX, step=0.10):
     for th in thetas:
         df = base_df.copy()
         df["θ"] = th
-        di = predict_di(model_choice, df)
-        rows.append({"θ":th, "Predicted_DI":di})
+        xieq = predict_xieq(model_choice, df)
+        rows.append({"θ":th, "Predicted_xi_eq":xieq})
     
     return pd.DataFrame(rows)
 
-def render_di_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, di_max=1.5, size=480):
+def render_xieq_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, y_max=1.5, size=480):
     import altair as alt
     
     if curve_df.empty:
@@ -884,7 +884,7 @@ def render_di_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, di_max=1.5
     AXIS_LABEL_FS = 14
     AXIS_TITLE_FS = 16
     
-    base_axes_df = pd.DataFrame({"θ":[0, actual_theta_max], "Predicted_DI":[0,0]})
+    base_axes_df = pd.DataFrame({"θ":[0, actual_theta_max], "Predicted_xi_eq":[0,0]})
     x_ticks = np.linspace(0, actual_theta_max, 5).round(2)
     
     # ---- background bands (UD, PD, SD, COL ranges) ----
@@ -924,9 +924,9 @@ def render_di_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, di_max=1.5
                 ),
             ),
             y=alt.Y(
-                "Predicted_DI:Q",
-                title="Damage Index (DI)",
-                scale=alt.Scale(domain=[0, di_max], nice=False, clamp=True),
+                "Predicted_xi_eq:Q",
+                title="Equivalent Viscous Damping Ratio (ξ_eq)",
+                scale=alt.Scale(domain=[0, y_max], nice=False, clamp=True),
                 axis=alt.Axis(
                     values=[0, 0.2, 0.5, 1.0, 1.5],
                     labelFontSize=AXIS_LABEL_FS,
@@ -940,17 +940,17 @@ def render_di_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, di_max=1.5
     line_layer = (
         alt.Chart(curve_df)
         .mark_line(strokeWidth=2, color="blue")
-        .encode(x="θ:Q", y="Predicted_DI:Q")
+        .encode(x="θ:Q", y="Predicted_xi_eq:Q")
     )
     
     layers = [band_layer, axes_layer, line_layer]
     
     # ---- band labels: UD / PD / SD / COL ----
     labels_df = pd.DataFrame([
-        {"θ": actual_theta_max * 0.80, "Predicted_DI": 0.10, "label": "UD"},
-        {"θ": actual_theta_max * 0.80, "Predicted_DI": 0.35, "label": "PD"},
-        {"θ": actual_theta_max * 0.20, "Predicted_DI": 0.75, "label": "SD"},
-        {"θ": actual_theta_max * 0.20, "Predicted_DI": 1.25, "label": "COL"},
+        {"θ": actual_theta_max * 0.80, "Predicted_xi_eq": 0.10, "label": "UD"},
+        {"θ": actual_theta_max * 0.80, "Predicted_xi_eq": 0.35, "label": "PD"},
+        {"θ": actual_theta_max * 0.20, "Predicted_xi_eq": 0.75, "label": "SD"},
+        {"θ": actual_theta_max * 0.20, "Predicted_xi_eq": 1.25, "label": "COL"},
     ])
     
     label_layer = (
@@ -962,22 +962,22 @@ def render_di_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, di_max=1.5
         )
         .encode(
             x="θ:Q",
-            y="Predicted_DI:Q",
+            y="Predicted_xi_eq:Q",
             text="label:N",
         )
     )
     
     layers.append(label_layer)
     
-    # ---- highlight last prediction point + DI value ----
+    # ---- highlight last prediction point + value ----
     if highlight_df is not None:
         point_layer = (
             alt.Chart(highlight_df)
             .mark_circle(size=110, color="red")
-            .encode(x="θ:Q", y="Predicted_DI:Q")
+            .encode(x="θ:Q", y="Predicted_xi_eq:Q")
         )
         
-        di_text_layer = (
+        val_text_layer = (
             alt.Chart(highlight_df)
             .mark_text(
                 align="center",
@@ -989,12 +989,12 @@ def render_di_chart(curve_df, highlight_df=None, theta_max=THETA_MAX, di_max=1.5
             )
             .encode(
                 x="θ:Q",
-                y="Predicted_DI:Q",
-                text=alt.Text("Predicted_DI:Q", format=".4f"),
+                y="Predicted_xi_eq:Q",
+                text=alt.Text("Predicted_xi_eq:Q", format=".4f"),
             )
         )
         
-        layers += [point_layer, di_text_layer]
+        layers += [point_layer, val_text_layer]
     
     chart = alt.layer(*layers).configure_view(strokeWidth=0)
     st.components.v1.html(chart.to_html(), height=size+100)
@@ -1022,11 +1022,11 @@ if st.session_state.get("do_calculation", False) and model_choice and model_choi
     
     # Make prediction
     try:
-        pred = predict_di(model_choice, xdf)
+        pred = predict_xieq(model_choice, xdf)
         
         # Add to results
         row = xdf.copy()
-        row["Predicted_DI"] = pred
+        row["Predicted_xi_eq"] = pred
         
         # Add new prediction
         st.session_state.results_df = pd.concat(
@@ -1043,7 +1043,7 @@ if st.session_state.get("do_calculation", False) and model_choice and model_choi
 # Always display chart if we have results
 if not st.session_state.results_df.empty:
     last = st.session_state.results_df.iloc[-1]
-    last_di = float(last["Predicted_DI"])
+    last_xieq = float(last["Predicted_xi_eq"])
     
     # Generate and display chart
     base = _make_input_df(
@@ -1055,12 +1055,12 @@ if not st.session_state.results_df.empty:
     
     highlight_df = pd.DataFrame({
         "θ": [float(last["θ"])],
-        "Predicted_DI": [last_di],
+        "Predicted_xi_eq": [last_xieq],
     })
     
     with chart_slot.container():
         st.markdown("<div style='margin-top:150px;'>", unsafe_allow_html=True)
-        render_di_chart(curve, highlight_df, THETA_MAX, 1.5, CHART_W)
+        render_xieq_chart(curve, highlight_df, THETA_MAX, 1.5, CHART_W)
         st.markdown("</div>", unsafe_allow_html=True)
 # =============================================================================
 # 🎨 STEP 9: FINAL UI POLISH & BANNER STYLING
@@ -1082,29 +1082,3 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
